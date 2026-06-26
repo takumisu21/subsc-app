@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>サブスク見直し管理アプリ</title>
+    <style>
+        :root { --primary: #3b82f6; --danger: #ef4444; --gray: #6b7280; --bg: #f3f4f6; }
+        body { font-family: sans-serif; background: var(--bg); margin: 0; padding: 20px; color: #333; }
+        .container { max-width: 500px; margin: 0 auto; }
+        .dashboard { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center; margin-bottom: 20px; }
+        .dashboard h2 { margin: 0; color: var(--gray); font-size: 14px; }
+        .total-amount { font-size: 32px; font-weight: bold; color: var(--primary); margin: 10px 0 0 0; }
+        .form-group { background: white; padding: 15px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .form-group input, .form-group select { width: 100%; padding: 8px; margin: 5px 0 10px 0; box-sizing: border-box; border: 1px solid #ddd; border-radius: 6px; }
+        .btn { width: 100%; padding: 10px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; color: white; }
+        .btn-primary { background: var(--primary); }
+        .btn-cancel { background: var(--danger); padding: 5px 10px; width: auto; font-size: 12px; }
+        .sub-list { display: flex; flex-direction: column; gap: 10px; }
+        .sub-card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; }
+        .sub-card.canceled { background: #e5e7eb; opacity: 0.7; }
+        .sub-info h3 { margin: 0 0 5px 0; font-size: 16px; }
+        .sub-info p { margin: 2px 0; font-size: 12px; color: var(--gray); }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="dashboard">
+        <h2>現在の月額合計コスト</h2>
+        <div class="total-amount" id="totalMonthlyCost">¥0</div>
+    </div>
+
+    <div class="form-group">
+        <h3>新しいサブスクを登録</h3>
+        <input type="text" id="subName" placeholder="アプリ名（例: Netflix）">
+        <input type="number" id="subPrice" placeholder="金額（例: 1490）">
+        <select id="subCycle">
+            <option value="monthly">月額</option>
+            <option value="yearly">年額</option>
+        </select>
+        <input type="date" id="subStartDate">
+        <button class="btn btn-primary" onclick="handleRegister()">登録する</button>
+    </div>
+
+    <h3>登録中のサブスク一覧</h3>
+    <div class="sub-list" id="subList"></div>
+</div>
+
+<script>
+    // --- Model: データ構造と永続化 (LocalStorage) ---
+    class SubscriptionManager {
+        constructor() {
+            this.subscriptions = JSON.parse(localStorage.getItem('subs')) || [];
+        }
+        save() {
+            localStorage.setItem('subs', JSON.stringify(this.subscriptions));
+        }
+        add(name, price, cycle, startDate) {
+            const sub = {
+                id: Date.now().toString(),
+                name,
+                price: parseInt(price),
+                cycle,
+                startDate,
+                endDate: null // 初期値は契約中
+            };
+            this.subscriptions.push(sub);
+            this.save();
+        }
+        cancel(id) {
+            const sub = this.subscriptions.find(s => s.id === id);
+            if (sub) {
+                // 今日を解約日に設定（yyyy-mm-dd形式）
+                sub.endDate = new Date().toISOString().split('T')[0];
+                this.save();
+            }
+        }
+        // 月額換算の合計金額を計算
+        calculateTotalMonthlyCost() {
+            return this.subscriptions.reduce((total, sub) => {
+                if (sub.endDate) return total; // 解約済は含めない
+                return total + (sub.cycle === 'monthly' ? sub.price : Math.round(sub.price / 12));
+            }, 0);
+        }
+    }
+
+    const manager = new SubscriptionManager();
+
+    // --- Helper: 日数と累計支払額の自動計算ロジック ---
+    function calculateMetrics(sub) {
+        const start = new Date(sub.startDate);
+        const end = sub.endDate ? new Date(sub.endDate) : new Date();
+        
+        // 1. 契約日数
+        const diffTime = Math.abs(end - start);
+        const days = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        // 2. 累計支払額（月/年単位の簡易計算）
+        let totalPaid = sub.price;
+        if (sub.cycle === 'monthly') {
+            const months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+            totalPaid = Math.max(1, months + 1) * sub.price;
+        } else {
+            const years = end.getFullYear() - start.getFullYear();
+            totalPaid = Math.max(1, years + 1) * sub.price;
+        }
+        return { days, totalPaid };
+    }
+
+    // --- Controller & UI: 画面の描画とイベント処理 ---
+    function updateUI() {
+        document.getElementById('totalMonthlyCost').innerText = `¥${manager.calculateTotalMonthlyCost().toLocaleString()}`;
+        
+        const listEl = document.getElementById('subList');
+        listEl.innerHTML = '';
+
+        manager.subscriptions.forEach(sub => {
+            const { days, totalPaid } = calculateMetrics(sub);
+            const isCanceled = sub.endDate !== null;
+
+            const card = document.createElement('div');
+            card.className = `sub-card ${isCanceled ? 'canceled' : ''}`;
+            card.innerHTML = `
+                <div class="sub-info">
+                    <h3>${sub.name}</h3>
+                    <p>価格: ¥${sub.price.toLocaleString()} (${sub.cycle === 'monthly' ? '月額' : '年額'})</p>
+                    <p>契約日数: ${days}日目 ${isCanceled ? '(解約済)' : ''}</p>
+                    <p><strong>これまで払った合計: ¥${totalPaid.toLocaleString()}</strong></p>
+                </div>
+                ${!isCanceled ? `<button class="btn btn-cancel" onclick="handleCancel('${sub.id}')">解約</button>` : ''}
+            `;
+            listEl.appendChild(card);
+        });
+    }
+
+    function handleRegister() {
+        const name = document.getElementById('subName').value;
+        const price = document.getElementById('subPrice').value;
+        const cycle = document.getElementById('subCycle').value;
+        const startDate = document.getElementById('subStartDate').value;
+
+        if (!name || !price || !startDate) return alert('入力項目が足りません');
+
+        manager.add(name, price, cycle, startDate);
+        updateUI();
+
+        // フォームクリア
+        document.getElementById('subName').value = '';
+        document.getElementById('subPrice').value = '';
+    }
+
+    function handleCancel(id) {
+        if (confirm('このサブスクを解約済みにしますか？')) {
+            manager.cancel(id);
+            updateUI();
+        }
+    }
+
+    // 初期起動時の日付セットと描画
+    document.getElementById('subStartDate').value = new Date().toISOString().split('T')[0];
+    updateUI();
+</script>
+</body>
+</html>
