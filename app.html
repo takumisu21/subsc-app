@@ -5,17 +5,25 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>サブスク見直し管理アプリ</title>
     <style>
-        :root { --primary: #3b82f6; --danger: #ef4444; --gray: #6b7280; --bg: #f3f4f6; }
+        :root { --primary: #3b82f6; --danger: #ef4444; --gray: #6b7280; --bg: #f3f4f6; --accent: #10b981; }
         body { font-family: sans-serif; background: var(--bg); margin: 0; padding: 20px; color: #333; }
         .container { max-width: 500px; margin: 0 auto; }
+        
+        /* 今回のテコ入れ：日本時間表示エリア */
+        .clock-container { background: #1e293b; color: #f8fafc; padding: 12px; border-radius: 12px; text-align: center; margin-bottom: 15px; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .clock-title { font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 2px; }
+        .clock-time { font-size: 20px; color: #34d399; }
+
         .dashboard { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center; margin-bottom: 20px; }
         .dashboard h2 { margin: 0; color: var(--gray); font-size: 14px; }
         .total-amount { font-size: 32px; font-weight: bold; color: var(--primary); margin: 10px 0 0 0; }
+        
         .form-group { background: white; padding: 15px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         .form-group input, .form-group select { width: 100%; padding: 8px; margin: 5px 0 10px 0; box-sizing: border-box; border: 1px solid #ddd; border-radius: 6px; }
         .btn { width: 100%; padding: 10px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; color: white; }
         .btn-primary { background: var(--primary); }
         .btn-cancel { background: var(--danger); padding: 5px 10px; width: auto; font-size: 12px; }
+        
         .sub-list { display: flex; flex-direction: column; gap: 10px; }
         .sub-card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; }
         .sub-card.canceled { background: #e5e7eb; opacity: 0.7; }
@@ -26,6 +34,11 @@
 <body>
 
 <div class="container">
+    <div class="clock-container">
+        <div class="clock-title">現在時刻 (日本標準時基準)</div>
+        <div class="clock-time" id="jstClock">----年--月--日 (水) --:--:--</div>
+    </div>
+
     <div class="dashboard">
         <h2>現在の月額合計コスト</h2>
         <div class="total-amount" id="totalMonthlyCost">¥0</div>
@@ -48,6 +61,31 @@
 </div>
 
 <script>
+    // --- Helper: 日本標準時(JST)の現在日時を取得する関数 ---
+    function getJSTDate() {
+        // 実行環境の時間を日本時間のタイムゾーンに強制統一
+        const jstString = new Date().toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" });
+        return new Date(jstString);
+    }
+
+    // --- 今回のテコ入れ：時計を1秒ごとにリアルタイム更新する機能 ---
+    function updateClock() {
+        const now = getJSTDate();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const date = String(now.getDate()).padStart(2, '0');
+        const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
+        const day = dayNames[now.getDay()];
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        const seconds = String(now.getSeconds()).padStart(2, '0');
+
+        document.getElementById('jstClock').innerText = `${year}年${month}月${date}日 (${day}) ${hours}:${minutes}:${seconds}`;
+        
+        // 時計が変わるタイミングで、経過日数と合計金額も随時最新に再計算して画面を更新する
+        updateUI();
+    }
+
     // --- Model: データ構造と永続化 (LocalStorage) ---
     class SubscriptionManager {
         constructor() {
@@ -62,8 +100,8 @@
                 name,
                 price: parseInt(price),
                 cycle,
-                startDate,
-                endDate: null // 初期値は契約中
+                startDate, // ユーザーが入力した登録日
+                endDate: null
             };
             this.subscriptions.push(sub);
             this.save();
@@ -71,12 +109,12 @@
         cancel(id) {
             const sub = this.subscriptions.find(s => s.id === id);
             if (sub) {
-                // 今日を解約日に設定（yyyy-mm-dd形式）
-                sub.endDate = new Date().toISOString().split('T')[0];
+                // 解約日も日本時間の今日（yyyy-mm-dd形式）に統一
+                const now = getJSTDate();
+                sub.endDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
                 this.save();
             }
         }
-        // 月額換算の合計金額を計算
         calculateTotalMonthlyCost() {
             return this.subscriptions.reduce((total, sub) => {
                 if (sub.endDate) return total; // 解約済は含めない
@@ -87,21 +125,29 @@
 
     const manager = new SubscriptionManager();
 
-    // --- Helper: 日数と累計支払額の自動計算ロジック ---
+    // --- 今回のテコ入れ：日本の現在日付と登録日を正確に比較して自動計算するロジック ---
     function calculateMetrics(sub) {
+        // 登録日（時刻を00:00:00に揃える）
         const start = new Date(sub.startDate);
-        const end = sub.endDate ? new Date(sub.endDate) : new Date();
-        
-        // 1. 契約日数
-        const diffTime = Math.abs(end - start);
-        const days = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        start.setHours(0, 0, 0, 0);
 
-        // 2. 累計支払額（月/年単位の簡易計算）
+        // 比較対象の現在（または解約日）の日付を取得し、こちらも時刻を00:00:00に揃える
+        const end = sub.endDate ? new Date(sub.endDate) : getJSTDate();
+        end.setHours(0, 0, 0, 0);
+        
+        // 1. 正確な経過日数の計算 (日本時間の日付同士の差分)
+        const diffTime = end - start;
+        // 登録日当日を「1日目」とするために +1 する
+        const days = Math.max(1, Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1);
+
+        // 2. 経過日数に基づいた累計支払額の自動計算
         let totalPaid = sub.price;
         if (sub.cycle === 'monthly') {
+            // 月数（満何ヶ月経過したか ＋ 開始月分として1ヶ月）
             const months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
             totalPaid = Math.max(1, months + 1) * sub.price;
         } else {
+            // 年数
             const years = end.getFullYear() - start.getFullYear();
             totalPaid = Math.max(1, years + 1) * sub.price;
         }
@@ -125,7 +171,7 @@
                 <div class="sub-info">
                     <h3>${sub.name}</h3>
                     <p>価格: ¥${sub.price.toLocaleString()} (${sub.cycle === 'monthly' ? '月額' : '年額'})</p>
-                    <p>契約日数: ${days}日目 ${isCanceled ? '(解約済)' : ''}</p>
+                    <p>登録からの経過日数: <span style="color:var(--primary); font-weight:bold;">${days}日目</span> ${isCanceled ? '(解約済)' : ''}</p>
                     <p><strong>これまで払った合計: ¥${totalPaid.toLocaleString()}</strong></p>
                 </div>
                 ${!isCanceled ? `<button class="btn btn-cancel" onclick="handleCancel('${sub.id}')">解約</button>` : ''}
@@ -157,9 +203,13 @@
         }
     }
 
-    // 初期起動時の日付セットと描画
-    document.getElementById('subStartDate').value = new Date().toISOString().split('T')[0];
-    updateUI();
+    // 初期起動時の処理：日付のセット
+    const todayJST = getJSTDate();
+    document.getElementById('subStartDate').value = `${todayJST.getFullYear()}-${String(todayJST.getMonth() + 1).padStart(2, '0')}-${String(todayJST.getDate()).padStart(2, '0')}`;
+    
+    // 1秒ごとに時計を更新し、それに連動して日数計算も走らせる
+    setInterval(updateClock, 1000);
+    updateClock(); // 初回実行
 </script>
 </body>
 </html>
