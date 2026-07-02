@@ -3,36 +3,93 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>サブスク見直し管理アプリ</title>
+    <title>プレミアム・サブスク管理</title>
     <style>
-        :root { --primary: #3b82f6; --danger: #ef4444; --gray: #6b7280; --bg: #f3f4f6; --accent: #10b981; }
-        body { font-family: sans-serif; background: var(--bg); margin: 0; padding: 20px; color: #333; }
+        :root { 
+            --bg: #0f172a; 
+            --card-bg: #1e293b;
+            --primary: #38bdf8; 
+            --danger: #f43f5e; 
+            --gray: #94a3b8; 
+            --accent: #34d399;
+            --text: #f8fafc;
+        }
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; background: var(--bg); margin: 0; padding: 20px; color: var(--text); }
         .container { max-width: 500px; margin: 0 auto; }
         
-        /* 日本時間表示エリア */
-        .clock-container { background: #1e293b; color: #f8fafc; padding: 12px; border-radius: 12px; text-align: center; margin-bottom: 15px; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        .clock-title { font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 2px; }
-        .clock-time { font-size: 20px; color: #34d399; }
+        /* 日本時間表示エリア（グラデーションで華やかに） */
+        .clock-container { 
+            background: linear-gradient(135deg, #1e1b4b, #311042); 
+            color: #f8fafc; 
+            padding: 15px; 
+            border-radius: 16px; 
+            text-align: center; 
+            margin-bottom: 15px; 
+            font-weight: bold; 
+            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.3);
+            border: 1px solid #4c1d95;
+        }
+        .clock-title { font-size: 11px; color: #c084fc; text-transform: uppercase; letter-spacing: 0.15em; margin-bottom: 4px; }
+        .clock-time { font-size: 22px; color: var(--accent); font-family: monospace; text-shadow: 0 0 10px rgba(52,211,153,0.3); }
+        
+        /* おすすめ追加機能：節約応援アドバイザー */
+        .advisor-msg { font-size: 13px; color: #e2e8f0; margin-top: 8px; font-weight: normal; background: rgba(255,255,255,0.05); padding: 6px; border-radius: 8px; }
 
-        .dashboard { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center; margin-bottom: 20px; }
-        .dashboard h2 { margin: 0; color: var(--gray); font-size: 14px; }
-        .total-amount { font-size: 32px; font-weight: bold; color: var(--primary); margin: 10px 0 0 0; }
+        /* ダッシュボード（リッチなビジュアル） */
+        .dashboard { 
+            background: linear-gradient(135deg, #1e293b, #0f172a); 
+            padding: 25px 20px; 
+            border-radius: 20px; 
+            box-shadow: 0 20px 25px -5px rgba(0,0,0,0.4); 
+            text-align: center; 
+            margin-bottom: 25px; 
+            border: 1px solid rgba(255,255,255,0.05);
+            position: relative;
+            overflow: hidden;
+        }
+        .dashboard::before {
+            content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
+            background: radial-gradient(circle, rgba(56,189,248,0.08) 0%, transparent 60%); pointer-events: none;
+        }
+        .dashboard h2 { margin: 0; color: var(--gray); font-size: 14px; letter-spacing: 0.05em; }
+        .total-amount { font-size: 40px; font-weight: 900; color: var(--primary); margin: 10px 0 0 0; text-shadow: 0 0 20px rgba(56,189,248,0.2); }
         
-        .form-group { background: white; padding: 15px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        .form-group input, .form-group select { width: 100%; padding: 8px; margin: 5px 0 10px 0; box-sizing: border-box; border: 1px solid #ddd; border-radius: 6px; }
-        .btn { width: 100%; padding: 10px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; color: white; }
-        .btn-primary { background: var(--primary); }
+        /* フォーム入力エリア */
+        .form-group { background: var(--card-bg); padding: 20px; border-radius: 16px; margin-bottom: 25px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05); }
+        .form-group h3 { margin: 0 0 15px 0; font-size: 16px; color: var(--primary); }
+        .form-group input, .form-group select { width: 100%; padding: 12px; margin: 5px 0 15px 0; box-sizing: border-box; background: #0f172a; border: 1px solid #334155; border-radius: 10px; color: white; font-size: 14px; }
+        .form-group input:focus, .form-group select:focus { outline: none; border-color: var(--primary); }
         
-        /* ボタンまわりのスタイル修正 */
+        .btn { width: 100%; padding: 12px; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; color: white; transition: all 0.2s; font-size: 15px; }
+        .btn-primary { background: linear-gradient(135deg, #0ea5e9, #2563eb); box-shadow: 0 4px 14px rgba(14,165,233,0.3); }
+        .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(14,165,233,0.4); }
+        
+        /* リストとカード（華やかなアプリアイコン付き） */
         .action-btns { display: flex; flex-direction: column; gap: 8px; justify-content: center; }
-        .btn-cancel { background: var(--danger); padding: 6px 12px; font-size: 12px; border-radius: 6px; border: none; color: white; cursor: pointer; font-weight: bold; }
-        .btn-delete { background: #94a3b8; padding: 6px 12px; font-size: 12px; border-radius: 6px; border: none; color: white; cursor: pointer; font-weight: bold; }
-        .btn-delete:hover { background: #64748b; }
+        .btn-cancel { background: rgba(244,63,94,0.1); border: 1px solid var(--danger); padding: 6px 14px; font-size: 12px; border-radius: 8px; color: var(--danger); cursor: pointer; font-weight: bold; }
+        .btn-cancel:hover { background: var(--danger); color: white; }
+        .btn-delete { background: rgba(148,163,184,0.1); border: 1px solid var(--gray); padding: 6px 14px; font-size: 12px; border-radius: 8px; color: var(--gray); cursor: pointer; font-weight: bold; }
+        .btn-delete:hover { background: var(--gray); color: #0f172a; }
 
-        .sub-list { display: flex; flex-direction: column; gap: 10px; }
-        .sub-card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; }
-        .sub-card.canceled { background: #e5e7eb; opacity: 0.7; }
-        .sub-info h3 { margin: 0 0 5px 0; font-size: 16px; }
+        .sub-list { display: flex; flex-direction: column; gap: 12px; }
+        .sub-card { background: var(--card-bg); padding: 16px; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); display: flex; justify-content: space-between; align-items: center; border: 1px solid rgba(255,255,255,0.02); transition: all 0.2s; }
+        .sub-card:hover { transform: scale(1.01); border-color: rgba(255,255,255,0.1); }
+        .sub-card.canceled { background: #1e293b; opacity: 0.4; border-style: dashed; }
+        
+        /* 左右レイアウトとロゴのスタイル */
+        .sub-main-info { display: flex; align-items: center; gap: 15px; }
+        
+        /* 自動生成アプリアイコン */
+        .sub-icon { 
+            width: 48px; height: 48px; border-radius: 12px; 
+            display: flex; align-items: center; justify-content: center; 
+            font-size: 20px; font-weight: bold; color: white; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            text-transform: uppercase;
+            flex-shrink: 0;
+        }
+
+        .sub-info h3 { margin: 0 0 4px 0; font-size: 16px; color: #fff; }
         .sub-info p { margin: 2px 0; font-size: 12px; color: var(--gray); }
     </style>
 </head>
@@ -42,6 +99,7 @@
     <div class="clock-container">
         <div class="clock-title">現在時刻 (日本標準時基準)</div>
         <div class="clock-time" id="jstClock">----年--月--日 (水) --:--:--</div>
+        <div class="advisor-msg" id="advisorMsg">計算中...</div>
     </div>
 
     <div class="dashboard">
@@ -51,7 +109,7 @@
 
     <div class="form-group">
         <h3>新しいサブスクを登録</h3>
-        <input type="text" id="subName" placeholder="アプリ名（例: Netflix）">
+        <input type="text" id="subName" placeholder="アプリ名（例: Netflix, Spotify, Amazon）">
         <input type="number" id="subPrice" placeholder="金額（例: 1490）">
         <select id="subCycle">
             <option value="monthly">月額</option>
@@ -61,18 +119,55 @@
         <button class="btn btn-primary" onclick="handleRegister()">登録する</button>
     </div>
 
-    <h3>登録中のサブスク一覧</h3>
+    <h3 style="font-size: 15px; color: var(--gray); margin-bottom: 10px;">登録中のサブスク一覧</h3>
     <div class="sub-list" id="subList"></div>
 </div>
 
 <script>
-    // --- Helper: 日本標準時(JST)の現在日時を取得する関数 ---
     function getJSTDate() {
         const jstString = new Date().toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" });
         return new Date(jstString);
     }
 
-    // 時計を1秒ごとにリアルタイム更新する機能
+    // サブスク名に応じて固定のカラフルな色とロゴを決定するロジック（華やかさテコ入れ）
+    function generateIconStyles(name) {
+        const lowerName = name.toLowerCase();
+        let bgColor = '#6366f1'; // デフォルト値
+        
+        // 有名サービスへの自動色割り当て
+        if (lowerName.includes('netf')) bgColor = '#e50914';
+        else if (lowerName.includes('spot')) bgColor = '#1ed760';
+        else if (lowerName.includes('amaz') || lowerName.includes('prime')) bgColor = '#ff9900';
+        else if (lowerName.includes('yout') || lowerName.includes('goog')) bgColor = '#ff0000';
+        else if (lowerName.includes('appl') || lowerName.includes('icloud')) bgColor = '#000000';
+        else if (lowerName.includes('disn')) bgColor = '#006e99';
+        else {
+            // その他の名前は文字コードからランダムに鮮やかな色を決定
+            const colors = ['#ec4899', '#8b5cf6', '#3b82f6', '#06b6d4', '#10b981', '#f59e0b', '#f43f5e'];
+            let charCodeSum = 0;
+            for (let i = 0; i < name.length; i++) charCodeSum += name.charCodeAt(i);
+            bgColor = colors[charCodeSum % colors.length];
+        }
+        
+        // アイコンの中に表示する文字（先頭の1〜2文字）
+        const displayChar = name.substring(0, 2);
+        return { bgColor, displayChar };
+    }
+
+    // 金額に応じて節約アドバイスを変化させるロジック（おすすめ機能）
+    function updateAdvisor(totalCost) {
+        const advisorEl = document.getElementById('advisorMsg');
+        if (totalCost === 0) {
+            advisorEl.innerHTML = "💰 <strong>診断:</strong> サブスクなし！最強の節約状態です。";
+        } else if (totalCost < 2000) {
+            advisorEl.innerHTML = "✨ <strong>診断:</strong> ナイスコントロール！厳選された良い使いっぷりです。";
+        } else if (totalCost < 5000) {
+            advisorEl.innerHTML = "⚠️ <strong>診断:</strong> 少し増えてきました。使っていないサービスがないか時々チェック！";
+        } else {
+            advisorEl.innerHTML = "🚨 <strong>診断:</strong> 黄色信号！固定費が少し高めです。本当に必要なものだけに絞るチャンス！";
+        }
+    }
+
     function updateClock() {
         const now = getJSTDate();
         const year = now.getFullYear();
@@ -85,28 +180,14 @@
         const seconds = String(now.getSeconds()).padStart(2, '0');
 
         document.getElementById('jstClock').innerText = `${year}年${month}月${date}日 (${day}) ${hours}:${minutes}:${seconds}`;
-        
-        // 時計が変わるタイミングで、経過日数と合計金額も随時最新に再計算して画面を更新
         updateUI();
     }
 
-    // --- Model: データ構造と永続化 (LocalStorage) ---
     class SubscriptionManager {
-        constructor() {
-            this.subscriptions = JSON.parse(localStorage.getItem('subs')) || [];
-        }
-        save() {
-            localStorage.setItem('subs', JSON.stringify(this.subscriptions));
-        }
+        constructor() { this.subscriptions = JSON.parse(localStorage.getItem('subs')) || []; }
+        save() { localStorage.setItem('subs', JSON.stringify(this.subscriptions)); }
         add(name, price, cycle, startDate) {
-            const sub = {
-                id: Date.now().toString(),
-                name,
-                price: parseInt(price),
-                cycle,
-                startDate,
-                endDate: null
-            };
+            const sub = { id: Date.now().toString(), name, price: parseInt(price), cycle, startDate, endDate: null };
             this.subscriptions.push(sub);
             this.save();
         }
@@ -118,16 +199,13 @@
                 this.save();
             }
         }
-        
-        // 【追加機能】部分的な削除ロジック (指定されたID以外のデータだけで配列を作り直す)
         delete(id) {
             this.subscriptions = this.subscriptions.filter(sub => sub.id !== id);
-            this.save(); // ローカルストレージを更新
+            this.save();
         }
-
         calculateTotalMonthlyCost() {
             return this.subscriptions.reduce((total, sub) => {
-                if (sub.endDate) return total; // 解約済は含めない
+                if (sub.endDate) return total;
                 return total + (sub.cycle === 'monthly' ? sub.price : Math.round(sub.price / 12));
             }, 0);
         }
@@ -135,14 +213,9 @@
 
     const manager = new SubscriptionManager();
 
-    // 日数と累計支払額の自動計算ロジック
     function calculateMetrics(sub) {
-        const start = new Date(sub.startDate);
-        start.setHours(0, 0, 0, 0);
-
-        const end = sub.endDate ? new Date(sub.endDate) : getJSTDate();
-        end.setHours(0, 0, 0, 0);
-        
+        const start = new Date(sub.startDate); start.setHours(0, 0, 0, 0);
+        const end = sub.endDate ? new Date(sub.endDate) : getJSTDate(); end.setHours(0, 0, 0, 0);
         const diffTime = end - start;
         const days = Math.max(1, Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1);
 
@@ -157,9 +230,12 @@
         return { days, totalPaid };
     }
 
-    // --- Controller & UI: 画面の描画とイベント処理 ---
     function updateUI() {
-        document.getElementById('totalMonthlyCost').innerText = `¥${manager.calculateTotalMonthlyCost().toLocaleString()}`;
+        const totalCost = manager.calculateTotalMonthlyCost();
+        document.getElementById('totalMonthlyCost').innerText = `¥${totalCost.toLocaleString()}`;
+        
+        // アドバイザーメッセージの更新
+        updateAdvisor(totalCost);
         
         const listEl = document.getElementById('subList');
         listEl.innerHTML = '';
@@ -167,15 +243,21 @@
         manager.subscriptions.forEach(sub => {
             const { days, totalPaid } = calculateMetrics(sub);
             const isCanceled = sub.endDate !== null;
+            const iconData = generateIconStyles(sub.name);
 
             const card = document.createElement('div');
             card.className = `sub-card ${isCanceled ? 'canceled' : ''}`;
             card.innerHTML = `
-                <div class="sub-info">
-                    <h3>${sub.name}</h3>
-                    <p>価格: ¥${sub.price.toLocaleString()} (${sub.cycle === 'monthly' ? '月額' : '年額'})</p>
-                    <p>登録からの経過日数: <span style="color:var(--primary); font-weight:bold;">${days}日目</span> ${isCanceled ? '(解約済)' : ''}</p>
-                    <p><strong>これまで払った合計: ¥${totalPaid.toLocaleString()}</strong></p>
+                <div class="sub-main-info">
+                    <div class="sub-icon" style="background: ${iconData.bgColor};">
+                        ${iconData.displayChar}
+                    </div>
+                    <div class="sub-info">
+                        <h3>${sub.name}</h3>
+                        <p>価格: ¥${sub.price.toLocaleString()} (${sub.cycle === 'monthly' ? '月額' : '年額'})</p>
+                        <p>経過日数: <span style="color:var(--primary); font-weight:bold;">${days}日目</span> ${isCanceled ? '(解約済)' : ''}</p>
+                        <p style="color: var(--accent);">これまで払った合計: ¥${totalPaid.toLocaleString()}</p>
+                    </div>
                 </div>
                 <div class="action-btns">
                     ${!isCanceled ? `<button class="btn-cancel" onclick="handleCancel('${sub.id}')">解約</button>` : ''}
@@ -208,19 +290,16 @@
         }
     }
 
-    // 【追加機能】削除ボタンが押されたときのイベントハンドラ
     function handleDelete(id) {
-        if (confirm('このサブスクのデータを完全に削除しますか？\n（これまでの支払履歴も消去されます）')) {
+        if (confirm('このサブスクのデータを完全に削除しますか？')) {
             manager.delete(id);
-            updateUI(); // 画面を再描画
+            updateUI();
         }
     }
 
-    // 初期起動時の処理：日付のセット
     const todayJST = getJSTDate();
     document.getElementById('subStartDate').value = `${todayJST.getFullYear()}-${String(todayJST.getMonth() + 1).padStart(2, '0')}-${String(todayJST.getDate()).padStart(2, '0')}`;
     
-    // 1秒ごとに時計を更新
     setInterval(updateClock, 1000);
     updateClock(); 
 </script>
